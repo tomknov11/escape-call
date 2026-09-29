@@ -73,12 +73,11 @@ jobs:
           audio_player null,null
           audio_source null,null
           audio_alert null,null
-          module_path /usr/lib/x86_64-linux-gnu/baresip/modules
+          module_path /usr/lib/baresip/modules
           module stdio.so
           module menu.so
           module g711.so
           module opus.so
-          module nullaudio.so
           EOF
 
       - name: Place SIP call
