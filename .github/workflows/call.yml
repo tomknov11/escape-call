@@ -18,12 +18,44 @@ permissions:
 jobs:
   call:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 10
     steps:
-      - name: Install baresip
+      - name: Cache modern baresip
+        id: baresip-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.local/escape-call-baresip
+          key: baresip-4.11.0-${{ runner.os }}-${{ runner.arch }}
+
+      - name: Build modern baresip
+        if: steps.baresip-cache.outputs.cache-hit != 'true'
+        env:
+          PREFIX: ${{ runner.temp }}/escape-call-baresip
         run: |
+          set -euo pipefail
           sudo apt-get update
-          sudo apt-get install -y baresip
+          sudo apt-get install -y build-essential cmake libssl-dev libopus-dev pkg-config
+
+          git clone --depth 1 --branch v4.11.0 https://github.com/baresip/re.git "$RUNNER_TEMP/re"
+          cmake -S "$RUNNER_TEMP/re" -B "$RUNNER_TEMP/re/build" \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_INSTALL_PREFIX="$PREFIX" \
+            -DCMAKE_INSTALL_LIBDIR=lib
+          cmake --build "$RUNNER_TEMP/re/build" --parallel
+          cmake --install "$RUNNER_TEMP/re/build"
+
+          git clone --depth 1 --branch v4.11.0 https://github.com/baresip/baresip.git "$RUNNER_TEMP/baresip"
+          cmake -S "$RUNNER_TEMP/baresip" -B "$RUNNER_TEMP/baresip/build" \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_INSTALL_PREFIX="$PREFIX" \
+            -DCMAKE_INSTALL_LIBDIR=lib \
+            -DCMAKE_PREFIX_PATH="$PREFIX" \
+            -DMODULES="uuid;account;stdio;menu;g711;opus"
+          cmake --build "$RUNNER_TEMP/baresip/build" --parallel
+          cmake --install "$RUNNER_TEMP/baresip/build"
+
+          mkdir -p "$HOME/.local"
+          mv "$PREFIX" "$HOME/.local/escape-call-baresip"
 
       - name: Configure baresip
         env:
@@ -62,7 +94,7 @@ jobs:
           mkdir -p "$HOME/.baresip"
 
           cat > "$HOME/.baresip/accounts" <<EOF
-          "${SIP_DISPLAY}" <sip:${SIP_USER}@sip.linphone.org;transport=udp>;auth_user=${SIP_USER};auth_pass=${SIP_PASS};regint=300;sipnat=none
+          "${SIP_DISPLAY}" <sip:${SIP_USER}@sip.linphone.org;transport=udp>;auth_user=${SIP_USER};auth_pass=${SIP_PASS};regint=300
           EOF
 
           cat > "$HOME/.baresip/config" <<'EOF'
@@ -73,9 +105,9 @@ jobs:
           audio_player null,null
           audio_source null,null
           audio_alert null,null
-          module_path /usr/lib/baresip/modules
-          module_tmp uuid.so
-          module_tmp account.so
+          module_path /home/runner/.local/escape-call-baresip/lib/baresip/modules
+          module uuid.so
+          module_app account.so
           module stdio.so
           module_app menu.so
           module g711.so
@@ -102,7 +134,8 @@ jobs:
             echo "/hangup"
             sleep 2
             echo "/quit"
-          } | timeout 70s baresip -f "$HOME/.baresip" 2>&1 | tee baresip.log
+          } | LD_LIBRARY_PATH="$HOME/.local/escape-call-baresip/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}" \
+              timeout 70s "$HOME/.local/escape-call-baresip/bin/baresip" -f "$HOME/.baresip" 2>&1 | tee baresip.log
 
           # Registration/call failures should be visible in the workflow log.
           if grep -Eiq "403 Forbidden|401 Unauthorized|registration failed|Register: Function not implemented|DNS.*failed|No such host" baresip.log; then
