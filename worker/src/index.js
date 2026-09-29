@@ -62,25 +62,37 @@ export class CallJob extends DurableObject {
     const source = await this.ctx.storage.get("source");
     if (!source || !(source in SOURCES)) return;
 
-    const url = `https://api.github.com/repos/${this.env.GITHUB_OWNER}/${this.env.GITHUB_REPO}/actions/workflows/${this.env.GITHUB_WORKFLOW}/dispatches`;
+    const owner = String(this.env.GITHUB_OWNER || "").trim();
+    const repo = String(this.env.GITHUB_REPO || "").trim();
+    const workflow = String(this.env.GITHUB_WORKFLOW || "call.yml").trim();
+    const token = String(this.env.GITHUB_TOKEN || "").trim();
+    const url = `https://api.github.com/repos/${owner}/${repo}/actions/workflows/${workflow}/dispatches`;
     console.log(JSON.stringify({ event: "dispatch_start", source, scheduledAt: await this.ctx.storage.get("runAt") }));
-    const response = await fetch(url, {
-      method: "POST",
-      headers: {
-        "authorization": `Bearer ${this.env.GITHUB_TOKEN}`,
-        "accept": "application/vnd.github+json",
-        "x-github-api-version": "2026-03-10",
-        "user-agent": "escape-call-worker",
-        "content-type": "application/json"
-      },
-      body: JSON.stringify({
-        ref: "main",
-        inputs: { source }
-      })
-    });
+    await this.ctx.storage.put("dispatchedAt", Date.now());
+
+    let response;
+    try {
+      response = await fetch(url, {
+        method: "POST",
+        headers: {
+          "authorization": `Bearer ${token}`,
+          "accept": "application/vnd.github+json",
+          "x-github-api-version": "2022-11-28",
+          "user-agent": "escape-call-worker",
+          "content-type": "application/json"
+        },
+        body: JSON.stringify({
+          ref: "main",
+          inputs: { source }
+        })
+      });
+    } catch (error) {
+      await this.ctx.storage.put("lastDispatchError", String(error).slice(0, 2000));
+      console.error(JSON.stringify({ event: "dispatch_failed", source, error: String(error) }));
+      throw error;
+    }
 
     await this.ctx.storage.put("lastDispatchStatus", response.status);
-    await this.ctx.storage.put("dispatchedAt", Date.now());
 
     if (!response.ok) {
       const body = await response.text();
