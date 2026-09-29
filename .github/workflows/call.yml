@@ -62,7 +62,7 @@ jobs:
           mkdir -p "$HOME/.baresip"
 
           cat > "$HOME/.baresip/accounts" <<EOF
-          "${SIP_DISPLAY}" <sip:${SIP_USER}@sip.linphone.org;transport=udp>;auth_user=${SIP_USER};auth_pass=${SIP_PASS};regint=300
+          "${SIP_DISPLAY}" <sip:${SIP_USER}@sip.linphone.org;transport=udp>;auth_user=${SIP_USER};auth_pass=${SIP_PASS};regint=300;sipnat=none
           EOF
 
           cat > "$HOME/.baresip/config" <<'EOF'
