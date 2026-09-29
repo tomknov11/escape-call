@@ -74,9 +74,10 @@ jobs:
           audio_source null,null
           audio_alert null,null
           module_path /usr/lib/baresip/modules
-          module account.so
+          module_tmp uuid.so
+          module_tmp account.so
           module stdio.so
-          module menu.so
+          module_app menu.so
           module g711.so
           module opus.so
           EOF
