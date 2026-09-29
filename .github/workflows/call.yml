@@ -140,11 +140,15 @@ jobs:
               timeout 70s "$HOME/.local/escape-call-baresip/bin/baresip" -f "$HOME/.baresip" 2>&1 | tee baresip.log
 
           # Registration/call failures should be visible in the workflow log.
-          if grep -Eiq "403 Forbidden|401 Unauthorized|registration failed|Register: Function not implemented|DNS.*failed|No such host" baresip.log; then
+          if grep -Eiq "401 Unauthorized|403 Forbidden|404 Not Found|480 Temporarily Unavailable|registration failed|Register: Function not implemented|DNS.*failed|No such host" baresip.log; then
             echo "SIP registration/call setup appears to have failed." >&2
             exit 4
           fi
           if ! grep -Eiq "registered successfully|registration succeeded|200 OK" baresip.log; then
             echo "No successful SIP registration was observed." >&2
             exit 5
+          fi
+          if ! grep -Eiq "180 Ringing|183 Session Progress|Call established" baresip.log; then
+            echo "The receiver never reached a ringing or connected state." >&2
+            exit 6
           fi
