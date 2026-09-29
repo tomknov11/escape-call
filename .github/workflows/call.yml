@@ -22,7 +22,7 @@ jobs:
     steps:
       - name: Cache modern baresip
         id: baresip-cache
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: ~/.local/escape-call-baresip
           key: baresip-4.11.0-${{ runner.os }}-${{ runner.arch }}
@@ -91,10 +91,12 @@ jobs:
             echo "SIP credentials for $SOURCE are missing" >&2
             exit 3
           fi
+          SIP_PASS_ESCAPED="${SIP_PASS//\\/\\\\}"
+          SIP_PASS_ESCAPED="${SIP_PASS_ESCAPED//\"/\\\"}"
           mkdir -p "$HOME/.baresip"
 
           cat > "$HOME/.baresip/accounts" <<EOF
-          "${SIP_DISPLAY}" <sip:${SIP_USER}@sip.linphone.org;transport=udp>;auth_user=${SIP_USER};auth_pass=${SIP_PASS};regint=300
+          "${SIP_DISPLAY}" <sip:${SIP_USER}@sip.linphone.org;transport=udp>;auth_user=${SIP_USER};auth_pass="${SIP_PASS_ESCAPED}";regint=300
           EOF
 
           cat > "$HOME/.baresip/config" <<'EOF'
