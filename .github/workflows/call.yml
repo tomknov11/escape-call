@@ -74,6 +74,7 @@ jobs:
           audio_source null,null
           audio_alert null,null
           module_path /usr/lib/baresip/modules
+          module account.so
           module stdio.so
           module menu.so
           module g711.so
