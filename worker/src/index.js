@@ -77,7 +77,6 @@ export class CallJob extends DurableObject {
         headers: {
           "authorization": `Bearer ${token}`,
           "accept": "application/vnd.github+json",
-          "x-github-api-version": "2022-11-28",
           "user-agent": "escape-call-worker",
           "content-type": "application/json"
         },
