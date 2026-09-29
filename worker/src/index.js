@@ -183,7 +183,7 @@ function showStatus(source, runAt, state="scheduled"){
   const suffix=state==="dispatched"?"（発信処理を開始済み）":" に着信予定";
   $("statusTime").textContent=targetTime.toLocaleString("ja-JP")+suffix;
   $("status").style.display="block";
-  $("reserve").disabled=true;
+  $("reserve").disabled=state!=="dispatched";
 }
 
 function clearStatus(){
@@ -229,7 +229,7 @@ async function restoreStatus(){
   if(!jobId || !$("pin").value.trim()) return;
   try{
     const data=await api("/api/status/"+encodeURIComponent(jobId));
-    if(data.cancelled){clearStatus();return}
+    if(data.cancelled || (!data.dispatchedAt && Date.now()>data.runAt+5*60_000)){clearStatus();return}
     showStatus(data.source,data.runAt,data.dispatchedAt?"dispatched":"scheduled");
   }catch(e){
     if(e.message==="予約IDが不正です") clearStatus();
