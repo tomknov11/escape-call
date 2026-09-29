@@ -62,7 +62,7 @@ jobs:
           mkdir -p "$HOME/.baresip"
 
           cat > "$HOME/.baresip/accounts" <<EOF
-          "${SIP_DISPLAY}" <sip:${SIP_USER}@sip.linphone.org;transport=tls>;auth_user=${SIP_USER};auth_pass=${SIP_PASS};regint=300
+          "${SIP_DISPLAY}" <sip:${SIP_USER}@sip.linphone.org;transport=udp>;auth_user=${SIP_USER};auth_pass=${SIP_PASS};regint=300
           EOF
 
           cat > "$HOME/.baresip/config" <<'EOF'
@@ -104,7 +104,7 @@ jobs:
           } | timeout 70s baresip -f "$HOME/.baresip" 2>&1 | tee baresip.log
 
           # Registration/call failures should be visible in the workflow log.
-          if grep -Eiq "403 Forbidden|401 Unauthorized|registration failed|DNS.*failed|No such host" baresip.log; then
+          if grep -Eiq "403 Forbidden|401 Unauthorized|registration failed|Register: Function not implemented|DNS.*failed|No such host" baresip.log; then
             echo "SIP registration/call setup appears to have failed." >&2
             exit 4
           fi
