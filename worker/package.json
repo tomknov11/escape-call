@@ -1,0 +1,22 @@
+{
+  "name": "escape-call-worker",
+  "private": true,
+  "type": "module",
+  "version": "2.0.0",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "check": "wrangler deploy --dry-run",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "@cloudflare/vitest-pool-workers": "^0.22.0",
+    "@types/node": "^24.10.0",
+    "vitest": "^4.1.0",
+    "wrangler": "^4.143.0"
+  },
+  "overrides": {
+    "miniflare": "5.20260926.0-alpha",
+    "workerd": "1.20260929.1"
+  }
+}

@@ -1,0 +1,114 @@
+name: Escape Call SIP
+
+on:
+  workflow_dispatch:
+    inputs:
+      source:
+        description: Caller source
+        required: true
+        type: choice
+        options:
+          - secom
+          - alsok
+          - nishikei
+
+permissions:
+  contents: read
+
+jobs:
+  call:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Install baresip
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y baresip
+
+      - name: Configure baresip
+        env:
+          SOURCE: ${{ inputs.source }}
+          SECOM_USER: ${{ secrets.SIP_SECOM_USER }}
+          SECOM_PASS: ${{ secrets.SIP_SECOM_PASS }}
+          ALSOK_USER: ${{ secrets.SIP_ALSOK_USER }}
+          ALSOK_PASS: ${{ secrets.SIP_ALSOK_PASS }}
+          NISHIKEI_USER: ${{ secrets.SIP_NISHIKEI_USER }}
+          NISHIKEI_PASS: ${{ secrets.SIP_NISHIKEI_PASS }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          case "$SOURCE" in
+            secom)
+              SIP_USER="$SECOM_USER"
+              SIP_PASS="$SECOM_PASS"
+              SIP_DISPLAY="SECOM監視センター"
+              ;;
+            alsok)
+              SIP_USER="$ALSOK_USER"
+              SIP_PASS="$ALSOK_PASS"
+              SIP_DISPLAY="ALSOK監視センター"
+              ;;
+            nishikei)
+              SIP_USER="$NISHIKEI_USER"
+              SIP_PASS="$NISHIKEI_PASS"
+              SIP_DISPLAY="にしけい監視センター"
+              ;;
+            *) exit 2 ;;
+          esac
+          if [[ -z "$SIP_USER" || -z "$SIP_PASS" ]]; then
+            echo "SIP credentials for $SOURCE are missing" >&2
+            exit 3
+          fi
+          mkdir -p "$HOME/.baresip"
+
+          cat > "$HOME/.baresip/accounts" <<EOF
+          "${SIP_DISPLAY}" <sip:${SIP_USER}@sip.linphone.org;transport=tls>;auth_user=${SIP_USER};auth_pass=${SIP_PASS};regint=300
+          EOF
+
+          cat > "$HOME/.baresip/config" <<'EOF'
+          poll_method epoll
+          sip_listen 0.0.0.0:0
+          call_local_timeout 120
+          call_max_calls 1
+          audio_player null,null
+          audio_source null,null
+          audio_alert null,null
+          module_path /usr/lib/x86_64-linux-gnu/baresip/modules
+          module stdio.so
+          module menu.so
+          module g711.so
+          module opus.so
+          module nullaudio.so
+          EOF
+
+      - name: Place SIP call
+        env:
+          RECEIVER_URI: ${{ secrets.SIP_RECEIVER_URI }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -z "$RECEIVER_URI" ]]; then
+            echo "SIP_RECEIVER_URI is missing" >&2
+            exit 3
+          fi
+
+          # Give the client a few seconds to register, dial, leave the call ringing /
+          # connected long enough to be useful, then hang up and quit.
+          {
+            sleep 15
+            echo "/dial ${RECEIVER_URI}"
+            sleep 40
+            echo "/hangup"
+            sleep 2
+            echo "/quit"
+          } | timeout 70s baresip -f "$HOME/.baresip" 2>&1 | tee baresip.log
+
+          # Registration/call failures should be visible in the workflow log.
+          if grep -Eiq "403 Forbidden|401 Unauthorized|registration failed|DNS.*failed|No such host" baresip.log; then
+            echo "SIP registration/call setup appears to have failed." >&2
+            exit 4
+          fi
+          if ! grep -Eiq "registered successfully|registration succeeded|200 OK" baresip.log; then
+            echo "No successful SIP registration was observed." >&2
+            exit 5
+          fi

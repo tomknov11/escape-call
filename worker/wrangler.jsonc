@@ -1,0 +1,33 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "escape-call",
+  "main": "src/index.js",
+  "compatibility_date": "2026-09-29",
+  "compatibility_flags": ["nodejs_compat"],
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "CALL_JOBS",
+        "class_name": "CallJob"
+      }
+    ]
+  },
+  "migrations": [
+    {
+      "tag": "v1",
+      "new_sqlite_classes": ["CallJob"]
+    }
+  ],
+  "vars": {
+    "GITHUB_WORKFLOW": "call.yml"
+  },
+  "secrets": {
+    "required": ["APP_PIN", "GITHUB_TOKEN", "GITHUB_OWNER", "GITHUB_REPO"]
+  },
+  "observability": {
+    "enabled": true,
+    "logs": {
+      "head_sampling_rate": 1
+    }
+  }
+}

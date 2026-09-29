@@ -1,0 +1,7 @@
+node_modules/
+.wrangler/
+.dev.vars
+.env
+.secrets-local.txt
+*.log
+worker/worker-configuration.d.ts
