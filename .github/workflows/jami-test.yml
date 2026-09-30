@@ -116,12 +116,14 @@ jobs:
               try:
                   call = ctrl.callmanager.getCallDetails(account, call_id)
                   state = call.get("CALL_STATE", call.get("Call.state", "unknown"))
-                  print(f"Jami call state: {state}")
+                  print(f"Jami call state: {state}; details: {dict(call)}")
               except Exception as error:
                   print(f"Jami call status unavailable: {error}")
                   break
           ctrl.callmanager.hangUp(account, call_id)
           print("Jami test call finished")
           PY
+          echo "--- Jami daemon diagnostics ---"
+          grep -Eai 'call|peer|push|dht|error|warn|fail' "$RUNNER_TEMP/jamid.log" | tail -n 200 || true
           JAMI_SESSION
 
