@@ -97,11 +97,29 @@ jobs:
           else:
               raise RuntimeError("Jami sender did not become ready")
 
+          details = ctrl.getAccountDetails(account)
+          sender_id = details.get("Account.username", "")
+          print(f"Jami sender ID: {sender_id}")
+
+          conversation_id = ctrl.startConversation(account)
+          if conversation_id:
+              ctrl.addConversationMember(account, conversation_id, receiver)
+              print("Jami contact invitation sent")
+              time.sleep(30)
+
           call_id = ctrl.Call(receiver, account)
           if not call_id:
               raise RuntimeError("Jami did not create a call")
           print("Jami test call started")
-          time.sleep(40)
+          for _ in range(8):
+              time.sleep(5)
+              try:
+                  call = ctrl.getCallDetails(call_id)
+                  state = call.get("CALL_STATE", call.get("Call.state", "unknown"))
+                  print(f"Jami call state: {state}")
+              except Exception as error:
+                  print(f"Jami call status unavailable: {error}")
+                  break
           ctrl.callmanager.hangUp(account, call_id)
           print("Jami test call finished")
           PY
