@@ -114,7 +114,7 @@ jobs:
           for _ in range(8):
               time.sleep(5)
               try:
-                  call = ctrl.getCallDetails(call_id)
+                  call = ctrl.callmanager.getCallDetails(account, call_id)
                   state = call.get("CALL_STATE", call.get("Call.state", "unknown"))
                   print(f"Jami call state: {state}")
               except Exception as error:
