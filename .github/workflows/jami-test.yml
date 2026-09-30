@@ -18,6 +18,7 @@ jobs:
             ~/.config/jami
             ~/.local/share/jami
           key: escape-call-jami-secom-v1
+          save-always: true
 
       - name: Install Jami daemon
         shell: bash
@@ -101,7 +102,7 @@ jobs:
               raise RuntimeError("Jami did not create a call")
           print("Jami test call started")
           time.sleep(40)
-          ctrl.HangUp(call_id)
+          ctrl.callmanager.hangUp(account, call_id)
           print("Jami test call finished")
           PY
           JAMI_SESSION
