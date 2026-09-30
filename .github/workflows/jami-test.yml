@@ -1,0 +1,108 @@
+name: Escape Call Jami Test
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  call:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - name: Restore Jami sender identity
+        uses: actions/cache@v5
+        with:
+          path: |
+            ~/.config/jami
+            ~/.local/share/jami
+          key: escape-call-jami-secom-v1
+
+      - name: Install Jami daemon
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends ca-certificates curl dbus-x11 git gnupg python3-dbus python3-gi
+          curl -fsSL https://dl.jami.net/public-key.gpg | sudo tee /usr/share/keyrings/jami-archive-keyring.gpg >/dev/null
+          echo 'deb [signed-by=/usr/share/keyrings/jami-archive-keyring.gpg] https://dl.jami.net/stable/ubuntu_24.04/ jami main' | sudo tee /etc/apt/sources.list.d/jami.list >/dev/null
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends jami-daemon
+
+      - name: Fetch Jami command-line controller
+        shell: bash
+        run: |
+          set -euo pipefail
+          git clone --depth 1 --filter=blob:none --sparse https://git.jami.net/savoirfairelinux/jami-daemon.git "$RUNNER_TEMP/jami-daemon"
+          git -C "$RUNNER_TEMP/jami-daemon" sparse-checkout set tools/jamictrl
+
+      - name: Place Jami test call
+        env:
+          RECEIVER_ID: ${{ secrets.JAMI_RECEIVER_ID }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ ! "$RECEIVER_ID" =~ ^[a-f0-9]{40}$ ]]; then
+            echo "JAMI_RECEIVER_ID is missing or invalid" >&2
+            exit 3
+          fi
+
+          export JAMI_CLI="$RUNNER_TEMP/jami-daemon/tools/jamictrl"
+          export PYTHONPATH="$JAMI_CLI"
+          export RECEIVER_ID
+
+          dbus-run-session -- bash <<'JAMI_SESSION'
+          set -euo pipefail
+          JAMID="$(command -v jamid || true)"
+          if [[ -z "$JAMID" ]]; then JAMID=/usr/libexec/jamid; fi
+          "$JAMID" -c -d -p >"$RUNNER_TEMP/jamid.log" 2>&1 &
+          JAMID_PID=$!
+          trap 'kill "$JAMID_PID" 2>/dev/null || true' EXIT
+          sleep 8
+
+          python3 - <<'PY'
+          import os
+          import time
+          from controller import libjamiCtrl
+
+          display_name = "SECOM監視センター"
+          receiver = os.environ["RECEIVER_ID"]
+          ctrl = libjamiCtrl("escape-call-jami", False)
+          accounts = ctrl.getAllAccounts("RING")
+
+          if accounts:
+              account = accounts[0]
+              details = ctrl.getAccountDetails(account)
+              details["Account.alias"] = display_name
+              details["Account.displayName"] = display_name
+              ctrl.configurationmanager.setAccountDetails(account, details)
+          else:
+              account = ctrl.addAccount({
+                  "Account.type": "RING",
+                  "Account.alias": display_name,
+                  "Account.displayName": display_name,
+              })
+
+          ctrl.setAccount(account)
+          deadline = time.time() + 75
+          while time.time() < deadline:
+              try:
+                  if ctrl.isAccountRegistered(account):
+                      break
+              except Exception:
+                  pass
+              time.sleep(3)
+          else:
+              raise RuntimeError("Jami sender did not become ready")
+
+          call_id = ctrl.Call(receiver, account)
+          if not call_id:
+              raise RuntimeError("Jami did not create a call")
+          print("Jami test call started")
+          time.sleep(40)
+          ctrl.HangUp(call_id)
+          print("Jami test call finished")
+          PY
+          JAMI_SESSION
+
